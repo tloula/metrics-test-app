@@ -29,7 +29,8 @@ buildCommand: |
   cp -r ui/dist/* /output/static/
 
   echo "==> Creating Python venv"
-  python3.12 -m venv /output/pythonenv3.12
+  python3 --version
+  python3 -m venv /output/pythonenv3.12
   /output/pythonenv3.12/bin/pip install --no-cache-dir --upgrade pip
   /output/pythonenv3.12/bin/pip install --no-cache-dir -r /output/requirements.txt
 

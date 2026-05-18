@@ -44,7 +44,6 @@ def _oscillate_loop(stop: threading.Event, until: float, period_s: float) -> Non
         if idle > 0:
             time.sleep(idle)
 
-trevorloula@outlook.com pas
 
 def stop() -> dict:
     _stop_event.set()

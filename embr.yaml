@@ -3,7 +3,7 @@ platformVersion: "3.12"
 buildCommand: |
   set -e
 
-  echo "==> Installing Node 20 (single-platform sandbox has no npm by default)"
+  echo "==> Installing Node 20 (build sandbox is bare-bones because buildCommand bypasses Oryx)"
   NODE_VERSION=20.18.1
   NODE_DIR=/tmp/node-v${NODE_VERSION}-linux-x64
   if [ ! -x "${NODE_DIR}/bin/node" ]; then
@@ -22,23 +22,60 @@ buildCommand: |
   cd ..
 
   echo "==> Staging app to /output"
-  mkdir -p /output
-  cp -r app /output/app
+  mkdir -p /output/app /output/static
+  cp -r app/. /output/app/
   cp requirements.txt /output/requirements.txt
-  mkdir -p /output/static
-  cp -r ui/dist/* /output/static/
+  cp -r ui/dist/. /output/static/
 
-  echo "==> Creating Python venv"
-  python3 --version
-  python3 -m venv /output/pythonenv3.12
-  /output/pythonenv3.12/bin/pip install --no-cache-dir --upgrade pip
-  /output/pythonenv3.12/bin/pip install --no-cache-dir -r /output/requirements.txt
+  echo "==> Installing uv (single-binary Python/pkg manager)"
+  export HOME="${HOME:-/tmp}"
+  export UV_INSTALL_DIR=/tmp/uv-bin
+  curl -fsSL https://astral.sh/uv/install.sh | env INSTALLER_NO_MODIFY_PATH=1 sh
+  export PATH="${UV_INSTALL_DIR}:${HOME}/.local/bin:${PATH}"
+  uv --version
+
+  echo "==> Resolving Python 3.12 via uv-managed download"
+  export UV_PYTHON_INSTALL_DIR=/tmp/uv-python
+  uv python install 3.12
+  PY312=$(uv python find 3.12)
+  echo "Build-time Python: ${PY312} ($("${PY312}" --version))"
+
+  echo "==> Installing Python dependencies into /output/vendor (Python 3.12 wheels)"
+  uv pip install \
+    --python "${PY312}" \
+    --target /output/vendor \
+    --no-cache \
+    -r /output/requirements.txt
+
+  echo "==> Writing run.sh that finds runtime Python 3.12 robustly"
+  cat > /output/run.sh <<'RUNSH'
+  #!/bin/bash
+  set -e
+  PYTHON=""
+  for candidate in \
+      /opt/python/3.12/bin/python3 \
+      /opt/python/3.12.*/bin/python3 \
+      "$(command -v python3.12 2>/dev/null || true)" \
+      "$(command -v python3 2>/dev/null || true)"; do
+    for p in $candidate; do
+      if [ -x "$p" ]; then PYTHON="$p"; break 2; fi
+    done
+  done
+  if [ -z "$PYTHON" ]; then echo "ERROR: no Python interpreter found in runtime image" >&2; exit 1; fi
+  echo "Runtime Python: $PYTHON ($($PYTHON --version 2>&1))"
+  export PYTHONPATH=/output/vendor
+  exec "$PYTHON" -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --app-dir /output
+  RUNSH
+  chmod +x /output/run.sh
+
+  echo "==> Build complete. Artifact layout:"
+  ls -la /output
 
 autoDeploy: true
 
 run:
   port: 8080
-  startCommand: "/output/pythonenv3.12/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080 --app-dir /output"
+  startCommand: "/output/run.sh"
 
 healthCheck:
   path: /health

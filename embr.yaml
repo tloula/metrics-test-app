@@ -2,9 +2,22 @@ platform: python
 platformVersion: "3.12"
 buildCommand: |
   set -e
+
+  echo "==> Installing Node 20 (single-platform sandbox has no npm by default)"
+  NODE_VERSION=20.18.1
+  NODE_DIR=/tmp/node-v${NODE_VERSION}-linux-x64
+  if [ ! -x "${NODE_DIR}/bin/node" ]; then
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o /tmp/node.tar.xz
+    tar -xJf /tmp/node.tar.xz -C /tmp
+    rm -f /tmp/node.tar.xz
+  fi
+  export PATH="${NODE_DIR}/bin:${PATH}"
+  node --version
+  npm --version
+
   echo "==> Building UI"
   cd ui
-  npm ci
+  npm ci --no-audit --no-fund
   npm run build
   cd ..
 

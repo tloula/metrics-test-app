@@ -1,0 +1,31 @@
+platform: python
+platformVersion: "3.12"
+buildCommand: |
+  set -e
+  echo "==> Building UI"
+  cd ui
+  npm ci
+  npm run build
+  cd ..
+
+  echo "==> Staging app to /output"
+  mkdir -p /output
+  cp -r app /output/app
+  cp requirements.txt /output/requirements.txt
+  mkdir -p /output/static
+  cp -r ui/dist/* /output/static/
+
+  echo "==> Creating Python venv"
+  python3.12 -m venv /output/pythonenv3.12
+  /output/pythonenv3.12/bin/pip install --no-cache-dir --upgrade pip
+  /output/pythonenv3.12/bin/pip install --no-cache-dir -r /output/requirements.txt
+
+autoDeploy: true
+
+run:
+  port: 8080
+  startCommand: "/output/pythonenv3.12/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080 --app-dir /output"
+
+healthCheck:
+  path: /health
+  expectedStatusCode: 200

@@ -152,6 +152,7 @@ export default function App() {
   const [netOscPeriod, setNetOscPeriod] = useState(20);
   const [netOscDur, setNetOscDur] = useState(180);
   const [netIngressMb, setNetIngressMb] = useState(50);
+  const [netIngressChunkKb, setNetIngressChunkKb] = useState(512);
 
   // Disk
   const [diskMb, setDiskMb] = useState(64);
@@ -249,6 +250,22 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {status?.recent_errors && status.recent_errors.length > 0 && (
+        <div className="status-panel" style={{ borderColor: 'var(--danger)' }}>
+          <h3 style={{ color: 'var(--danger)' }}>Recent errors (last 60s)</h3>
+          <div className="scenarios-list">
+            {status.recent_errors.map((e) => (
+              <div key={e.scenario + e.at} className="item">
+                <span style={{ color: 'var(--danger)' }}>{e.scenario}</span>
+                <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>
+                  {e.message}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {log && <div className="log" style={{ marginBottom: 16 }}>{log}</div>}
 
@@ -396,21 +413,32 @@ export default function App() {
 
         <ScenarioCard
           title="Network ingress (upload)"
-          description="Browser POSTs a payload of N MB to /api/network/ingress."
+          description="Browser uploads N MB in small chunks (avoids proxy body limits)."
           activeNames={[]}
           scenarios={scenarios}
         >
           <div className="fields">
             <NumberField
-              label="Payload (MB)"
+              label="Total (MB)"
               value={netIngressMb}
               onChange={setNetIngressMb}
               min={1}
               max={500}
             />
+            <NumberField
+              label="Chunk (KB)"
+              value={netIngressChunkKb}
+              onChange={setNetIngressChunkKb}
+              min={4}
+              max={4096}
+            />
           </div>
           <div className="row">
-            <button onClick={() => run('network.ingress', () => api.networkIngress(netIngressMb))}>
+            <button
+              onClick={() =>
+                run('network.ingress', () => api.networkIngress(netIngressMb, netIngressChunkKb))
+              }
+            >
               Send
             </button>
           </div>

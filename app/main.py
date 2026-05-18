@@ -77,6 +77,7 @@ def status() -> dict:
     return {
         "now": time.time(),
         "scenarios": state.snapshot(),
+        "recent_errors": state.recent_errors(),
         "process": {
             "pid": _process.pid,
             "cpu_percent": proc_cpu,

@@ -27,6 +27,29 @@ _active: dict[str, ScenarioRun] = {}
 # Health-fail flag (set by /api/health/fail)
 health_fail_until: float = 0.0
 
+# Recent errors per scenario name, retained for ERROR_TTL_S
+_errors: dict[str, dict[str, Any]] = {}
+ERROR_TTL_S = 60.0
+
+
+def record_error(scenario: str, message: str, extra: dict[str, Any] | None = None) -> None:
+    with _lock:
+        _errors[scenario] = {
+            "scenario": scenario,
+            "message": message,
+            "at": time.time(),
+            "extra": extra or {},
+        }
+
+
+def recent_errors() -> list[dict[str, Any]]:
+    now = time.time()
+    with _lock:
+        keep = {k: v for k, v in _errors.items() if now - v["at"] <= ERROR_TTL_S}
+        _errors.clear()
+        _errors.update(keep)
+        return sorted(keep.values(), key=lambda e: e["at"], reverse=True)
+
 
 def register(run: ScenarioRun) -> None:
     with _lock:

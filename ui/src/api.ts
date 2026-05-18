@@ -8,6 +8,12 @@ export type Status = {
     params: Record<string, unknown>;
     detail: Record<string, unknown>;
   }>;
+  recent_errors?: Array<{
+    scenario: string;
+    message: string;
+    at: number;
+    extra: Record<string, unknown>;
+  }>;
   process?: {
     pid: number;
     cpu_percent: number;
@@ -63,15 +69,33 @@ export const api = {
   networkOscillate: (period_s: number, duration_s: number, url: string) =>
     call('/api/network/oscillate', { period_s, duration_s, url }),
   networkStop: () => call('/api/network/stop', {}),
-  networkIngress: async (sizeMb: number) => {
-    const bytes = new Uint8Array(sizeMb * 1024 * 1024);
-    // Fill with non-zero so compression-aware proxies still see real bytes.
-    for (let i = 0; i < bytes.length; i += 4096) bytes[i] = (i & 0xff) || 1;
-    return call('/api/network/ingress', undefined, {
-      method: 'POST',
-      body: bytes,
-      headers: { 'content-type': 'application/octet-stream' },
-    });
+  networkIngress: async (totalMb: number, chunkKb: number = 512) => {
+    // Many proxies (including Embr's ingress) cap individual request bodies
+    // far below our app-level cap. Chunk the upload into many small requests
+    // so we accumulate the same total ingress bytes without hitting any single
+    // request limit.
+    const chunkBytes = Math.max(1, chunkKb) * 1024;
+    const totalBytes = Math.max(1, totalMb) * 1024 * 1024;
+    const chunk = new Uint8Array(chunkBytes);
+    for (let i = 0; i < chunkBytes; i += 4096) chunk[i] = (i & 0xff) || 1;
+    let sent = 0;
+    let chunks = 0;
+    while (sent < totalBytes) {
+      const remaining = totalBytes - sent;
+      const body = remaining >= chunkBytes ? chunk : chunk.slice(0, remaining);
+      const res = await fetch('/api/network/ingress', {
+        method: 'POST',
+        body,
+        headers: { 'content-type': 'application/octet-stream' },
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`${res.status} after ${sent} bytes (${chunks} chunks): ${text || '<empty>'}`);
+      }
+      sent += body.byteLength;
+      chunks += 1;
+    }
+    return { sent_bytes: sent, chunks };
   },
   diskIO: (mb: number, iterations: number) => call('/api/disk/io', { mb, iterations }),
   diskStop: () => call('/api/disk/stop', {}),

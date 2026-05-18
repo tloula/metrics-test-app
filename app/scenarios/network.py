@@ -14,8 +14,9 @@ from app import state
 
 MAX_DURATION_S = 600
 MAX_PAYLOAD_MB = 500
-# Configurable default — small-ish public file, can be overridden per request.
-DEFAULT_EGRESS_URL = "https://speed.hetzner.de/100MB.bin"
+# Cloudflare's speed test endpoint — generates an N-byte response on demand and
+# is reachable from essentially every cloud egress. Default 100 MB per request.
+DEFAULT_EGRESS_URL = "https://speed.cloudflare.com/__down?bytes=104857600"
 
 _stop_event = threading.Event()
 _thread: threading.Thread | None = None
@@ -70,7 +71,9 @@ def egress(url: str, repeat: int) -> dict:
                     run.detail["bytes_total"] += n
                     run.detail["iterations"] = i + 1
                 except Exception as e:
-                    run.detail["error"] = str(e)
+                    msg = f"{type(e).__name__}: {e}"
+                    run.detail["error"] = msg
+                    state.record_error("network.egress", msg, {"url": url})
                     break
         finally:
             loop.close()
@@ -108,7 +111,9 @@ def oscillate(period_s: float, duration_s: float, url: str) -> dict:
                     run.detail["bytes_total"] += n
                     run.detail["iterations"] += 1
                 except Exception as e:
-                    run.detail["error"] = str(e)
+                    msg = f"{type(e).__name__}: {e}"
+                    run.detail["error"] = msg
+                    state.record_error("network.oscillate", msg, {"url": url})
                 # idle for the remainder of the period (gap = oscillation)
                 elapsed = time.time() - burst_start
                 gap = max(0.0, period_s - elapsed)

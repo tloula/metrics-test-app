@@ -97,4 +97,5 @@ def oscillate(period_s: float, duration_s: float, workers: int) -> dict:
             params={"period_s": period_s, "duration_s": duration_s, "workers": workers},
         )
     )
+
     return {"started": True, "duration_s": duration_s, "period_s": period_s, "workers": workers}

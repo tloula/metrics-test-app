@@ -16,7 +16,7 @@ MAX_DURATION_S = 600
 MAX_PAYLOAD_MB = 500
 # Cloudflare's speed test endpoint — generates an N-byte response on demand and
 # is reachable from essentially every cloud egress. Default 100 MB per request.
-DEFAULT_EGRESS_URL = "https://speed.cloudflare.com/__down?bytes=104857600"
+DEFAULT_EGRESS_URL = "https://proof.ovh.net/files/100Mb.dat"
 
 _stop_event = threading.Event()
 _thread: threading.Thread | None = None
